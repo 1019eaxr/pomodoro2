@@ -1,84 +1,92 @@
-const express = require('express');
-const mongoose = require('mongoose');
+// app.js
+const express = require("express");
+const mongoose = require("mongoose");
 
 const app = express();
-const PORT = 3000;
 
-mongoose.set('strictQuery', false); // 解决deprecation警告
+// ✅ Use the port Railway gives you, or 3000 locally
+const PORT = process.env.PORT || 3000;
 
-mongoose.connect('mongodb://115.190.50.47:27017/time_db', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true
+// ✅ Enable JSON and CORS handling (for API safety)
+app.use(express.json());
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", "*");
+  next();
 });
 
-mongoose.connection.once('open', () => {
-  console.log('connect success');
+// ✅ Use an environment variable for MongoDB connection
+// (You’ll set MONGODB_URI in Railway’s Variables tab)
+mongoose.set("strictQuery", false);
+mongoose
+  .connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ Connected to MongoDB Atlas"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
+
+// --- Schema & Model ---
+const taskSchema = new mongoose.Schema({
+  name: String,
+  num: Number,
+  finish: Number,
 });
 
-mongoose.connection.once('close', () => {
-  console.log('connect fail');
+const Task = mongoose.model("Task", taskSchema);
+
+// --- Routes ---
+
+// Get all tasks
+app.get("/getTasks", async (req, res) => {
+  try {
+    const tasks = await Task.find();
+    res.status(200).json({ success: true, data: tasks });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-const taskSchema = {
-    name: String,
-    num: Number,
-    finish: Number
-};
-
-const Task = mongoose.model('Task', taskSchema);
-
-app.get('/getTasks', async (req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    let tasks = await Task.find();
-    res.status(200).json({
-        success: true,
-        data: tasks
-    });
-});
-
-app.get('/addTask', async (req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
+// Add a new task
+app.get("/addTask", async (req, res) => {
+  try {
     const task = new Task({
-        id: new Date().getTime(),
-        name: req.query.name,
-        num: req.query.num,
-        finish: 0
+      name: req.query.name,
+      num: req.query.num,
+      finish: 0,
     });
     await task.save();
-    let tasks = await Task.find();
-    res.status(200).json({
-        success: true,
-        data: tasks
-    });
+    const tasks = await Task.find();
+    res.status(200).json({ success: true, data: tasks });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-app.get('/updateTask', async (req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    const task = await Task.findById(req.query.id);
-    task.finish = req.query.finish;
-    await Task.findByIdAndUpdate(
-        req.query.id,
-        task,
-        { new: true, runValidators: true }
-    );
-    let tasks = await Task.find();
-    res.status(200).json({
-        success: true,
-        data: tasks
-    });
+// Update an existing task
+app.get("/updateTask", async (req, res) => {
+  try {
+    const { id, finish } = req.query;
+    await Task.findByIdAndUpdate(id, { finish }, { new: true });
+    const tasks = await Task.find();
+    res.status(200).json({ success: true, data: tasks });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-app.get('/deleteTask', async (req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    await Task.findByIdAndDelete(req.query.id);
-    let tasks = await Task.find();
-    res.status(200).json({
-        success: true,
-        data: tasks
-    });
+// Delete a task
+app.get("/deleteTask", async (req, res) => {
+  try {
+    const { id } = req.query;
+    await Task.findByIdAndDelete(id);
+    const tasks = await Task.find();
+    res.status(200).json({ success: true, data: tasks });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
 });
 
-// 启动服务器
+// --- Run Server ---
 app.listen(PORT, () => {
-    console.log(`server run at http://localhost:${PORT}`);
+  console.log(`🚀 Server running on port ${PORT}`);
 });
