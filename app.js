@@ -1,21 +1,17 @@
 // app.js
 const express = require("express");
 const mongoose = require("mongoose");
+const cors = require("cors");
 
 const app = express();
-
-// ✅ Use the port Railway gives you, or 3000 locally
 const PORT = process.env.PORT || 3000;
 
-// ✅ Enable JSON and CORS handling (for API safety)
-app.use(express.json());
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  next();
-});
+// ---------- Middleware ----------
+app.use(cors());              // allows all origins
+app.use(express.json());      // parse JSON body data
+app.use(express.urlencoded({ extended: true })); // parse form data
 
-// ✅ Use an environment variable for MongoDB connection
-// (You’ll set MONGODB_URI in Railway’s Variables tab)
+// ---------- Database connection ----------
 mongoose.set("strictQuery", false);
 mongoose
   .connect(process.env.MONGODB_URI, {
@@ -25,16 +21,16 @@ mongoose
   .then(() => console.log("✅ Connected to MongoDB Atlas"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-// --- Schema & Model ---
+// ---------- Schema & Model ----------
 const taskSchema = new mongoose.Schema({
   name: String,
   num: Number,
-  finish: Number,
+  finish: { type: Number, default: 0 },
 });
 
 const Task = mongoose.model("Task", taskSchema);
 
-// --- Routes ---
+// ---------- Routes ----------
 
 // Get all tasks
 app.get("/getTasks", async (req, res) => {
@@ -46,15 +42,11 @@ app.get("/getTasks", async (req, res) => {
   }
 });
 
-// Add a new task
-app.get("/addTask", async (req, res) => {
+// Add a new task  (use POST instead of GET)
+app.post("/addTask", async (req, res) => {
   try {
-    const task = new Task({
-      name: req.query.name,
-      num: req.query.num,
-      finish: 0,
-    });
-    await task.save();
+    const { name, num } = req.body;
+    const task = await Task.create({ name, num });
     const tasks = await Task.find();
     res.status(200).json({ success: true, data: tasks });
   } catch (err) {
@@ -63,9 +55,10 @@ app.get("/addTask", async (req, res) => {
 });
 
 // Update an existing task
-app.get("/updateTask", async (req, res) => {
+app.put("/updateTask/:id", async (req, res) => {
   try {
-    const { id, finish } = req.query;
+    const { id } = req.params;
+    const { finish } = req.body;
     await Task.findByIdAndUpdate(id, { finish }, { new: true });
     const tasks = await Task.find();
     res.status(200).json({ success: true, data: tasks });
@@ -75,9 +68,9 @@ app.get("/updateTask", async (req, res) => {
 });
 
 // Delete a task
-app.get("/deleteTask", async (req, res) => {
+app.delete("/deleteTask/:id", async (req, res) => {
   try {
-    const { id } = req.query;
+    const { id } = req.params;
     await Task.findByIdAndDelete(id);
     const tasks = await Task.find();
     res.status(200).json({ success: true, data: tasks });
@@ -86,7 +79,7 @@ app.get("/deleteTask", async (req, res) => {
   }
 });
 
-// --- Run Server ---
+// ---------- Run Server ----------
 app.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
